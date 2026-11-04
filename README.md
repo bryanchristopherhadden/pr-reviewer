@@ -79,11 +79,30 @@ python3 run.py --github OWNER/REPO --interval 30
 
 Both watcher commands support `--data PATH` to change the output directory. `watcher.py` also supports `--interval SECONDS`, `--repo PATH`, and `--base BRANCH`.
 
+## Use as an MCP server
+
+`mcp_server.py` exposes the same pipeline as MCP tools over stdio, so an MCP client such as Claude Code can drive it:
+
+- `scan_github(slug)` / `scan_local(repo, base)`: save new PR or branch diffs
+- `list_changes()`: list saved change files
+- `review_change(change_file, force=False)`: review a change with Claude and save the findings
+- `get_review(change_file)`: return the saved findings
+- `post_review(change_file)`: post a saved PR review to GitHub (publishes; only call when asked)
+
+Register it with Claude Code from the project directory:
+
+```sh
+claude mcp add pr-reviewer -e PR_REVIEWER_REPO=OWNER/REPO -- "$PWD/.venv/bin/python" "$PWD/mcp_server.py"
+```
+
+`PR_REVIEWER_REPO` is the default repo for `scan_github`. Set `PR_REVIEWER_DATA` to change the data directory. The server reads `ANTHROPIC_API_KEY` from the environment or `.env`, the same as the scripts.
+
 ## How it is organized
 
 - `watcher.py` scans local Git repositories or GitHub PRs, parses diffs, and persists detected changes.
 - `reviewer.py` sends saved hunks to Claude and persists structured review results.
 - `run.py` connects GitHub scanning, AI review, and review submission.
+- `mcp_server.py` exposes the watcher, reviewer, and posting steps as MCP tools.
 - `test_watcher.py`, `test_reviewer.py`, and `test_run.py` cover diff scanning, review parsing, and GitHub review payload construction.
 
 Generated state, changes, and reviews are stored under `data/` and are excluded from Git.
