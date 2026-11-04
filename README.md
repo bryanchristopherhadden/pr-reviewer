@@ -2,7 +2,7 @@
 
 # PR Reviewer
 
-PR Reviewer is an in-progress Python tool for monitoring code changes, asking an AI model to look for concrete problems, and optionally publishing review comments to GitHub pull requests.
+PR Reviewer is an in-progress Python tool for monitoring code changes, asking an AI model to look for concrete problems, and optionally publishing review comments to GitHub pull requests. It can run as a command-line tool or as an MCP server, so an MCP client such as Claude Code can drive it.
 
 The project is intentionally focused on the review loop: detect a new change, split its diff into reviewable hunks, request findings about correctness and security risks, and save or publish the results. It is a prototype, not a hosted service or a replacement for human review.
 
@@ -17,6 +17,8 @@ Code review is essential, but it can be easy to miss a subtle bug in a busy diff
 - **Parses unified diffs into hunks**, retaining file paths and old/new line numbers for review comments.
 - **Reviews hunks with Claude** for concrete bugs, security issues, error-handling problems, and correctness risks. Results are saved as JSON.
 - **Can publish a GitHub pull request review**, placing comments inline when the referenced line is in the diff and putting other findings in the review summary.
+- **Limits GitHub reviews to PRs into `main`**, and holds a PR while the bot has an unresolved review thread on it.
+- **Exposes all of the above as MCP tools** (`mcp_server.py`), so an MCP client can scan, review, and post.
 
 The reviewer sends diff hunks to the configured Anthropic API. Treat the diffs accordingly and only use it with code you are authorized to share.
 
@@ -26,6 +28,7 @@ The reviewer sends diff hunks to the configured Anthropic API. Treat the diffs a
 - Git
 - The GitHub CLI (`gh`) for GitHub PR workflows
 - An Anthropic API key for AI reviews
+- The `mcp` Python package (installed from `requirements.txt`) for the MCP server
 
 Install the Python dependencies:
 
