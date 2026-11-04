@@ -51,12 +51,12 @@ def build_review(change: dict, review: dict) -> dict:
             else:
                 body_lines.append(f"- `{hunk['file']}:{c['line']}` {text}")
     summary = (
-        f"Automated review by `{review['model']}` of {len(review['hunks'])} hunks: "
-        f"{total} comment(s)."
+        f"🤖 **Bryan's Robot** (`{review['model']}`) reviewed {len(review['hunks'])} hunks "
+        f"and found {total} thing(s) to look at ✨"
     )
     failed = [h for h in review["hunks"] if h["error"]]
     if failed:
-        summary += f" {len(failed)} hunk(s) failed to review."
+        summary += f"\n\n⚠️ {len(failed)} hunk(s) got stuck and weren't reviewed."
     if body_lines:
         summary += "\n\nComments on lines outside the diff:\n" + "\n".join(body_lines)
     return {

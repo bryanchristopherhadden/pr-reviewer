@@ -39,12 +39,13 @@ class BuildReview(unittest.TestCase):
             "body": "**bug**: division by zero",
         }])
         self.assertIn("`app.py:99`", payload["body"])
-        self.assertIn("of 1 hunks: 2 comment(s)", payload["body"])
+        self.assertIn("Bryan's Robot", payload["body"])
+        self.assertIn("reviewed 1 hunks and found 2 thing(s)", payload["body"])
 
     def test_reports_failed_hunks(self):
         review = {"model": "m", "hunks": [{"file": "a", "error": "boom", "comments": []}]}
         payload = build_review({"new_sha": "s", "hunks": []}, review)
-        self.assertIn("1 hunk(s) failed", payload["body"])
+        self.assertIn("1 hunk(s) got stuck", payload["body"])
 
 
 if __name__ == "__main__":
