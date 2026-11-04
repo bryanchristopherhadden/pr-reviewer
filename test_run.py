@@ -1,5 +1,6 @@
 import unittest
 
+import run
 from run import build_review, comment_lines
 
 CHANGE = {
@@ -50,3 +51,49 @@ class BuildReview(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BlockingThreads(unittest.TestCase):
+    def _gh(self, payload):
+        import json
+        from unittest import mock
+        result = mock.Mock(returncode=0, stdout=json.dumps(payload), stderr="")
+        return mock.patch("run.subprocess.run", return_value=result)
+
+    def _thread(self, resolved, author):
+        return {"isResolved": resolved, "comments": {"nodes": [{"author": {"login": author}}]}}
+
+    def test_counts_only_unresolved_threads_the_bot_opened(self):
+        payload = {"data": {"repository": {"pullRequest": {"reviewThreads": {
+            "pageInfo": {"hasNextPage": False},
+            "nodes": [
+                self._thread(False, "alice"),
+                self._thread(True, "bot"),
+                self._thread(False, "bot"),
+            ],
+        }}}}}
+        with self._gh(payload):
+            self.assertEqual(run.blocking_threads("o/r", 1, "bot"), 1)
+
+    def test_ignores_unresolved_threads_from_others(self):
+        payload = {"data": {"repository": {"pullRequest": {"reviewThreads": {
+            "pageInfo": {"hasNextPage": False},
+            "nodes": [self._thread(False, "alice"), self._thread(False, "bob")],
+        }}}}}
+        with self._gh(payload):
+            self.assertEqual(run.blocking_threads("o/r", 1, "bot"), 0)
+
+    def test_zero_when_all_resolved(self):
+        payload = {"data": {"repository": {"pullRequest": {"reviewThreads": {
+            "pageInfo": {"hasNextPage": False},
+            "nodes": [self._thread(True, "alice")],
+        }}}}}
+        with self._gh(payload):
+            self.assertEqual(run.blocking_threads("o/r", 1, "bot"), 0)
+
+    def test_holds_back_when_more_than_one_page(self):
+        payload = {"data": {"repository": {"pullRequest": {"reviewThreads": {
+            "pageInfo": {"hasNextPage": True}, "nodes": [],
+        }}}}}
+        with self._gh(payload):
+            self.assertGreater(run.blocking_threads("o/r", 1, "bot"), 0)

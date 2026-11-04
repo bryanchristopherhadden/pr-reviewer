@@ -124,3 +124,27 @@ class ScanGithub(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScanGithubBase(unittest.TestCase):
+    def test_skips_prs_not_targeting_base(self):
+        import json, tempfile
+        from pathlib import Path
+        from unittest import mock
+        import watcher
+        pulls = [
+            {"number": 1, "title": "a", "url": "u", "author": {"login": "x"},
+             "headRefName": "f", "headRefOid": "a" * 40, "baseRefName": "main"},
+            {"number": 2, "title": "b", "url": "u", "author": {"login": "x"},
+             "headRefName": "g", "headRefOid": "b" * 40, "baseRefName": "dev"},
+        ]
+        fetched = []
+        def fake_compare(slug, base, head):
+            fetched.append(head)
+            return "c" * 40, [{"file": "a.py", "enclosing": None, "lines": []}]
+        with tempfile.TemporaryDirectory() as tmp, \
+             mock.patch.object(watcher, "gh", return_value=json.dumps(pulls)), \
+             mock.patch.object(watcher, "fetch_compare", side_effect=fake_compare):
+            written = watcher.scan_github("o/r", Path(tmp))
+        self.assertEqual([p.name for p in written], [f"pr-1-{'a' * 12}.json"])
+        self.assertEqual(fetched, ["a" * 40])

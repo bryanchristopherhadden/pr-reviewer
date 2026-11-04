@@ -75,6 +75,8 @@ python3 run.py --github OWNER/REPO --once
 python3 run.py --github OWNER/REPO --interval 30
 ```
 
+Only PRs targeting `main` are picked up. A PR is held, without review or posting, while the bot has an unresolved review thread on it. Once those threads are resolved, the next pass reviews and posts it.
+
 `run.py` requires both a working `gh` login and `ANTHROPIC_API_KEY`. Each PR head commit is posted once; posting state is saved in `data/posted.json`. A review is submitted as a GitHub `COMMENT` review, not as an approval or request for changes.
 
 Both watcher commands support `--data PATH` to change the output directory. `watcher.py` also supports `--interval SECONDS`, `--repo PATH`, and `--base BRANCH`.

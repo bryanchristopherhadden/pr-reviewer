@@ -194,8 +194,8 @@ def fetch_compare(slug: str, base: str, head: str) -> tuple[str, list[dict]]:
     return merge_base, parse_hunks(text)
 
 
-def scan_github(slug: str, data: Path) -> list[Path]:
-    """Save a change file for each open PR whose head commit is new."""
+def scan_github(slug: str, data: Path, base: str = "main") -> list[Path]:
+    """Save a change file for each open PR into `base` whose head commit is new."""
     state_path = data / "github-state.json"
     seen = load_state(state_path)
     pulls = json.loads(gh(
@@ -206,6 +206,8 @@ def scan_github(slug: str, data: Path) -> list[Path]:
     next_seen: dict[str, str] = {}  # Closed PRs drop out; reopening rechecks them.
     for pull in pulls:
         number, head = str(pull["number"]), pull["headRefOid"]
+        if pull["baseRefName"] != base:
+            continue
         next_seen[number] = head
         if seen.get(number) == head:
             continue

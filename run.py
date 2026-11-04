@@ -80,15 +80,110 @@ def load_posted(path: Path) -> dict:
     return json.loads(path.read_text()) if path.exists() else {}
 
 
+THREADS_QUERY = """
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) {
+        pageInfo { hasNextPage }
+        nodes { isResolved comments(first: 1) { nodes { author { login } } } }
+      }
+    }
+  }
+}
+"""
+
+
+def blocking_threads(slug: str, pr: int, bot_login: str) -> int:
+    """Count unresolved review threads on the PR that the bot itself opened.
+
+    Returns a large number if there are more than 100 threads, so the PR is held
+    back rather than reviewed on partial data.
+    """
+    owner, name = slug.split("/", 1)
+    result = subprocess.run(
+        ["gh", "api", "graphql", "-f", f"query={THREADS_QUERY}",
+         "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={pr}"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"reading threads on PR #{pr} failed: {result.stderr.strip()}")
+    threads = json.loads(result.stdout)["data"]["repository"]["pullRequest"]["reviewThreads"]
+    if threads["pageInfo"]["hasNextPage"]:
+        return 10**6
+    count = 0
+    for thread in threads["nodes"]:
+        if thread["isResolved"]:
+            continue
+        nodes = thread["comments"]["nodes"]
+        opener = nodes[0]["author"]["login"] if nodes and nodes[0]["author"] else None
+        if opener and same_account(opener, bot_login):
+            count += 1
+    return count
+
+
+def same_account(a: str, b: str) -> bool:
+    """GitHub reports bots as 'name[bot]' in REST and 'name' in GraphQL; treat them as one."""
+    return a.removesuffix("[bot]") == b.removesuffix("[bot]")
+
+
+def bot_login() -> str:
+    """Login the reviews are posted as. Inside GitHub Actions the token has no /user, so use BOT_LOGIN."""
+    if os.environ.get("BOT_LOGIN"):
+        return os.environ["BOT_LOGIN"]
+    if os.environ.get("GITHUB_ACTIONS"):
+        return "github-actions[bot]"
+    result = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"reading gh user failed: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def already_posted_on_github(slug: str, pr: int, sha: str, login: str) -> bool:
+    """True if the bot already reviewed this head commit. Survives runner restarts."""
+    result = subprocess.run(
+        ["gh", "api", "--paginate", f"repos/{slug}/pulls/{pr}/reviews"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"listing reviews on PR #{pr} failed: {result.stderr.strip()}")
+    # --paginate prints one JSON array per page, possibly separated by whitespace; read them all.
+    decoder, reviews, text, pos = json.JSONDecoder(), [], result.stdout, 0
+    while pos < len(text):
+        if text[pos].isspace():
+            pos += 1
+            continue
+        page, pos = decoder.raw_decode(text, pos)
+        reviews.extend(page)
+    return any(
+        r.get("commit_id") == sha and same_account(r["user"]["login"], login)
+        for r in reviews
+    )
+
+
 def process(slug: str, data: Path) -> None:
-    """Review and post every PR change file that hasn't been posted yet."""
+    """Review and post every PR change file that hasn't been posted yet.
+
+    A PR is skipped while the bot has an unresolved review thread on it. It is
+    retried on later passes, so it's reviewed once those threads are resolved.
+    """
     posted_path = data / "posted.json"
     posted = load_posted(posted_path)
     client = None
+    login = None
     for path in sorted((data / "changes").glob("pr-*.json")):
         change = json.loads(path.read_text())
         key = f"pr-{change['pr']}-{change['new_sha']}"
         if key in posted:
+            continue
+        login = login or bot_login()
+        if already_posted_on_github(slug, change["pr"], change["new_sha"], login):
+            posted[key] = {"pr": change["pr"], "comments": None, "found_on_github": True}
+            watcher.write_json(posted_path, posted)
+            continue
+        open_threads = blocking_threads(slug, change["pr"], login)
+        if open_threads:
+            print(f"holding PR #{change['pr']}: {open_threads} unresolved thread(s)", flush=True)
             continue
         review_path = data / "reviews" / path.name
         if review_path.exists():
