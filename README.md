@@ -1,5 +1,4 @@
-<img width="911" height="773" alt="Screenshot 2026-11-04 at 7 32 53 AM" src="https://github.com/user-attachments/assets/de878c80-51f5-4e25-9e9b-07028e2df874" />
-
+<img width="960" height="748" alt="Screenshot 2026-11-04 at 8 18 13 AM" src="https://github.com/user-attachments/assets/c4317cb7-dcd2-4684-a35a-af1d58b90d3f" />
 
 # PR Reviewer
 
