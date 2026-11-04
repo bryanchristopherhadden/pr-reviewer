@@ -109,8 +109,46 @@ claude mcp add pr-reviewer -e PR_REVIEWER_REPO=OWNER/REPO -- "$PWD/.venv/bin/pyt
 - `run.py` connects GitHub scanning, AI review, and review submission.
 - `mcp_server.py` exposes the watcher, reviewer, and posting steps as MCP tools.
 - `test_watcher.py`, `test_reviewer.py`, and `test_run.py` cover diff scanning, review parsing, and GitHub review payload construction.
+- `evals/` and `test_evals.py` hold the labelled review cases and the precision and recall scorer.
 
 Generated state, changes, and reviews are stored under `data/` and are excluded from Git.
+
+## Evaluation
+
+`evals/` measures review quality against hand-labelled cases. `evals/cases.py` has 28
+before/after pairs: 16 with a real problem (bugs and security issues) and 12 clean
+ones, several of them safe versions of buggy code. Each problem is labelled, and a
+comment within one line of it counts as a hit.
+
+```sh
+python3 -m unittest test_evals          # label checks and scoring rules, no API calls
+python3 -m evals.run_eval --repeat 3    # calls the Anthropic API; writes evals/results/
+```
+
+Scoring treats a second comment on an already-caught problem as a duplicate, not a
+false positive. Precision counts only comments that land away from a labelled problem,
+or any comment on a clean case.
+
+Results from `claude-haiku-5-5`, three passes over the 28 cases:
+
+| metric | value |
+|---|---|
+| recall | 1.00 (16 of 16 labelled problems caught in every pass) |
+| precision | 0.80 (16 hits, 4 false positives) |
+| duplicates | 4 to 5 per pass, extra comments on a real problem |
+| clean cases with a comment | 3 of 12 |
+
+What these numbers do and do not show:
+
+- The set is small and was written by the author. It is not a random sample of real
+  PRs, and it has no multi-file or cross-hunk bugs.
+- Matching is by line, not by explanation. A comment can land on the right line and
+  still be wrong. Read the results JSON before trusting a hit.
+- The 4 false positives are on clean cases where the diff is defensible but the
+  reviewer over-reports, such as a behaviour change flagged as a warning. They are
+  not hallucinated bugs, but they are noise a reviewer would have to dismiss.
+- Across three passes, hits (16), false positives (4) and recall were identical. Only
+  the duplicate count varied, from 4 to 5. Three passes is too few to estimate variance.
 
 ## Development
 
