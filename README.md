@@ -1,3 +1,6 @@
+<img width="911" height="773" alt="Screenshot 2026-11-04 at 7 32 53 AM" src="https://github.com/user-attachments/assets/de878c80-51f5-4e25-9e9b-07028e2df874" />
+
+
 # PR Reviewer
 
 PR Reviewer is an in-progress Python tool for monitoring code changes, asking an AI model to look for concrete problems, and optionally publishing review comments to GitHub pull requests.
