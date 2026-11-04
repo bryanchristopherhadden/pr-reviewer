@@ -7,9 +7,9 @@ from types import SimpleNamespace
 from reviewer import parse_comments, render_hunk, review_change, load_env
 
 
-def fake_client(text):
+def fake_client(text, stop_reason="end_turn"):
     block = SimpleNamespace(type="text", text=text)
-    create = lambda **kwargs: SimpleNamespace(content=[block])
+    create = lambda **kwargs: SimpleNamespace(content=[block], stop_reason=stop_reason)
     return SimpleNamespace(messages=SimpleNamespace(create=create))
 
 
@@ -57,6 +57,12 @@ class ReviewChange(unittest.TestCase):
                                         "hunks": [HUNK]})
         self.assertIsNone(review["hunks"][0]["error"])
         self.assertEqual(review["hunks"][0]["comments"][0]["line"], 2)
+
+    def test_truncated_reply_is_recorded_as_error(self):
+        client = fake_client("", stop_reason="max_tokens")
+        review = review_change(client, {"hunks": [HUNK]})
+        self.assertEqual(review["hunks"][0]["comments"], [])
+        self.assertIn("max_tokens", review["hunks"][0]["error"])
 
     def test_api_failure_is_recorded_not_raised(self):
         import anthropic

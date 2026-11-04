@@ -83,10 +83,14 @@ def parse_comments(text: str) -> list[dict]:
 def review_hunk(client, hunk: dict) -> list[dict]:
     response = client.messages.create(
         model=MODEL,
-        max_tokens=1024,
+        max_tokens=8000,
+        # Adaptive thinking shares max_tokens with the answer; low effort keeps it small.
+        output_config={"effort": "low"},
         system=SYSTEM,
         messages=[{"role": "user", "content": render_hunk(hunk)}],
     )
+    if response.stop_reason == "max_tokens":
+        raise ValueError("reply cut off at max_tokens before the JSON answer")
     text = "".join(b.text for b in response.content if b.type == "text")
     return parse_comments(text)
 
@@ -106,7 +110,7 @@ def review_change(client, change: dict) -> dict:
             "error": error,
         })
     return {
-        "source": {k: change[k] for k in ("repo", "branch", "new_sha") if k in change},
+        "source": {k: change[k] for k in ("repo", "branch", "new_sha", "pr") if k in change},
         "reviewed_at": datetime.now(timezone.utc).isoformat(),
         "model": MODEL,
         "hunks": results,
